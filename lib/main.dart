@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_ui_auth/firebase_ui_auth.dart' as auth_ui;
+import 'package:openci_app/firebase_options.dart';
 import 'package:openci_app/src/features/release/presentation/prepare_release_page.dart';
 
 void main() async {
