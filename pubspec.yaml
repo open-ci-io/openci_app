@@ -23,6 +23,9 @@ dependencies:
   riverpod_annotation: ^2.3.3
   cloud_firestore: ^4.15.9
   signals_flutter: ^4.5.1
+  http: ^1.2.1
+  awesome_extensions: ^2.0.13
+  modal_progress_hud_nsn: ^0.5.1
 
 dev_dependencies:
   flutter_test:
