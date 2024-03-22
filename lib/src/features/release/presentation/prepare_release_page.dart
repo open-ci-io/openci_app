@@ -135,6 +135,7 @@ class _Modal extends ConsumerWidget {
 
     return SizedBox(
       height: 360,
+      width: context.width,
       child: Watch(
         (context) => ModalProgressHUD(
           inAsyncCall: _isLoading.value,
@@ -292,8 +293,8 @@ class _Modal extends ConsumerWidget {
                 ),
               );
             },
-            error: (e, s) => Text(e.toString()),
-            loading: () => const CircularProgressIndicator(),
+            error: (e, s) => Center(child: Text(e.toString())),
+            loading: () => const Center(child: CircularProgressIndicator()),
           ),
         ),
       ),
