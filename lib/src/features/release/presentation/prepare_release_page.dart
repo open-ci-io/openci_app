@@ -126,11 +126,11 @@ class PrepareReleasePage extends ConsumerWidget {
 }
 
 class _Modal extends ConsumerWidget {
-  const _Modal({super.key});
+  const _Modal();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final future = ref.watch(fetchVersionProvider('owner', 'repo'));
+    final future = ref.watch(fetchAppVersionProvider);
     final controller = ref.watch(prepareReleaseControllerProvider.notifier);
 
     return SizedBox(
@@ -148,7 +148,7 @@ class _Modal extends ConsumerWidget {
                     (context) {
                       String text;
 
-                      _currentVersion.value = data;
+                      _currentVersion.value = data.appVersion;
                       if (_updatedVersion.value.isEmpty) {
                         text = _currentVersion.value;
                       } else {
@@ -266,12 +266,12 @@ class _Modal extends ConsumerWidget {
                             try {
                               await controller
                                   .updatePubspecYamlVersionKeepBuild(
-                                '',
-                                '',
-                                'accessToken',
+                                data.orgName,
+                                data.repoName,
+                                data.githubPAT,
                                 _updatedVersion.value,
                               );
-                              // isChecked.value = value;
+                              isSetAppVersionChecked.value = true;
                             } catch (e) {
                               print(e);
                             } finally {

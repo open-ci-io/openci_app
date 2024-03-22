@@ -1,28 +1,92 @@
 import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:openci_app/src/features/release/domain/set_app_version.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:http/http.dart' as http;
 
 part 'prepare_release_controller.g.dart';
 
-@riverpod
-Future<String> fetchVersion(
-  FetchVersionRef ref,
+Future<String> fetchPubspecYaml(
   String owner,
   String repo,
+  String accessToken,
 ) async {
-  final controller = ref.watch(prepareReleaseControllerProvider.notifier);
-  final result = await controller.fetchPubspecYaml(owner, repo);
-  if (result == null) {
-    return '0.0.1';
+  final uri = Uri.https(
+    'api.github.com',
+    '/repos/$owner/$repo/contents/pubspec.yaml',
+  );
+  final response =
+      await http.get(uri, headers: {'Authorization': 'token $accessToken'});
+
+  if (response.statusCode == 200) {
+    final body = jsonDecode(response.body);
+    final content = body['content'].replaceAll('\n', '');
+    final decodedContent = utf8.decode(base64.decode(content));
+    return decodedContent;
+  } else {
+    throw Exception('Failed to fetch pubspec.yaml: ${response.body}');
   }
-  return result;
+}
+
+String? extractVersion(String yamlContent) {
+  // バージョン行を見つける正規表現
+  final versionLineRegExp = RegExp(r'version: ([^\s]+)');
+  // +記号で区切られたバージョン番号の前の部分を抽出する正規表現
+  final versionRegExp = RegExp(r'([^\+]+)');
+
+  // pubspec.yamlの内容からバージョン行を探す
+  final versionLineMatch = versionLineRegExp.firstMatch(yamlContent);
+  if (versionLineMatch != null) {
+    // バージョン行からバージョン番号を取り出す
+    final version = versionLineMatch.group(1);
+    if (version != null) {
+      // バージョン番号から+の前の部分を抽出する
+      final versionMatch = versionRegExp.firstMatch(version);
+      if (versionMatch != null) {
+        final extractedVersion = versionMatch.group(1);
+        return extractedVersion;
+      } else {
+        throw Exception('Version format does not include a + symbol.');
+      }
+    }
+  } else {
+    throw Exception('Version line not found.');
+  }
+  return null;
+}
+
+@riverpod
+Future<SetAppVersion> fetchAppVersion(
+  FetchAppVersionRef ref,
+) async {
+  final uid = FirebaseAuth.instance.currentUser!.uid;
+  print('uid: $uid');
+  final querySnapshot = await FirebaseFirestore.instance
+      .collection('users')
+      .where('users', arrayContains: uid)
+      .withConverter(
+        fromFirestore: (snapshot, _) =>
+            SetAppVersion.fromJson(snapshot.data()!),
+        toFirestore: (data, _) => data.toJson(),
+      )
+      .get();
+  final data = querySnapshot.docs.first.data();
+
+  final pubspecYaml =
+      await fetchPubspecYaml(data.orgName, data.repoName, data.githubPAT);
+  final version = extractVersion(pubspecYaml);
+  if (version == null) {
+    throw Exception('Failed to extract version from pubspec.yaml');
+  }
+  return data.copyWith(appVersion: version);
 }
 
 @riverpod
 class PrepareReleaseController extends _$PrepareReleaseController {
   @override
-  void build() {
+  Future<void> build() async {
     return;
   }
 
@@ -80,51 +144,6 @@ class PrepareReleaseController extends _$PrepareReleaseController {
         'Failed to fetch current pubspec.yaml: ${currentFileResponse.body}',
       );
     }
-  }
-
-  Future<String?> fetchPubspecYaml(String owner, String repo) async {
-    const accessToken = '';
-
-    final uri = Uri.https(
-      'api.github.com',
-      '/repos/$owner/$repo/contents/pubspec.yaml',
-    );
-    final response =
-        await http.get(uri, headers: {'Authorization': 'token $accessToken'});
-
-    if (response.statusCode == 200) {
-      final body = jsonDecode(response.body);
-      final content = body['content'].replaceAll('\n', '');
-      final decodedContent = utf8.decode(base64.decode(content));
-      print(decodedContent);
-      return extractVersion(decodedContent);
-    } else {
-      print('Failed to fetch pubspec.yaml: ${response.body}');
-    }
-    return null;
-  }
-
-  String? extractVersion(String yamlContent) {
-    final versionLineRegExp = RegExp(r'version: ([^\s]+)');
-
-    final versionRegExp = RegExp(r'([^\+]+)');
-
-    final versionLineMatch = versionLineRegExp.firstMatch(yamlContent);
-    if (versionLineMatch != null) {
-      final version = versionLineMatch.group(1);
-      if (version != null) {
-        final versionMatch = versionRegExp.firstMatch(version);
-        if (versionMatch != null) {
-          final extractedVersion = versionMatch.group(1);
-          return extractedVersion;
-        } else {
-          print('Version format does not include a + symbol.');
-        }
-      }
-    } else {
-      print('Version line not found.');
-    }
-    return null;
   }
 
   String updateVersion(String version) {
