@@ -61,26 +61,8 @@ String? extractVersion(String yamlContent) {
 Future<SetAppVersion> fetchAppVersion(
   FetchAppVersionRef ref,
 ) async {
-  final uid = FirebaseAuth.instance.currentUser!.uid;
-  print('uid: $uid');
-  final querySnapshot = await FirebaseFirestore.instance
-      .collection('users')
-      .where('users', arrayContains: uid)
-      .withConverter(
-        fromFirestore: (snapshot, _) =>
-            SetAppVersion.fromJson(snapshot.data()!),
-        toFirestore: (data, _) => data.toJson(),
-      )
-      .get();
-  final data = querySnapshot.docs.first.data();
-
-  final pubspecYaml =
-      await fetchPubspecYaml(data.orgName, data.repoName, data.githubPAT);
-  final version = extractVersion(pubspecYaml);
-  if (version == null) {
-    throw Exception('Failed to extract version from pubspec.yaml');
-  }
-  return data.copyWith(appVersion: version);
+  final controller = ref.watch(prepareReleaseControllerProvider.notifier);
+  return controller.fetchSetAppVersion();
 }
 
 @riverpod
@@ -88,6 +70,132 @@ class PrepareReleaseController extends _$PrepareReleaseController {
   @override
   Future<void> build() async {
     return;
+  }
+
+  Future<SetAppVersion> fetchSetAppVersion() async {
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final querySnapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .where('users', arrayContains: uid)
+        .withConverter(
+          fromFirestore: (snapshot, _) =>
+              SetAppVersion.fromJson(snapshot.data()!),
+          toFirestore: (data, _) => data.toJson(),
+        )
+        .get();
+    final data = querySnapshot.docs.first.data();
+
+    final pubspecYaml =
+        await fetchPubspecYaml(data.orgName, data.repoName, data.githubPAT);
+    final version = extractVersion(pubspecYaml);
+    if (version == null) {
+      throw Exception('Failed to extract version from pubspec.yaml');
+    }
+    return data.copyWith(appVersion: version);
+  }
+
+  Future<void> createReleaseBranchAndPR(
+    String version,
+    SetAppVersion setAppVersion,
+  ) async {
+    final String branchName = 'release/$version';
+
+    // `develop`ブランチの最新のコミットSHAを取得
+    final developSha = await getLatestCommitSha('develop', setAppVersion);
+    if (developSha == null) {
+      print('Failed to get develop branch SHA');
+      return;
+    }
+
+    // 新しいリリースブランチを作成
+    final branchCreated =
+        await createBranch(branchName, developSha, setAppVersion);
+    if (!branchCreated) {
+      print('Failed to create release branch');
+      return;
+    }
+
+    // PRを作成
+    final prCreated = await createPullRequest(
+      branchName,
+      'main',
+      'Promote to main($version)',
+      '',
+      setAppVersion,
+    );
+    if (!prCreated) {
+      print('Failed to create PR');
+      return;
+    }
+
+    print('Release branch and PR created successfully');
+  }
+
+  Future<String?> getLatestCommitSha(
+    String branch,
+    SetAppVersion setAppVersion,
+  ) async {
+    final baseUrl =
+        'https://api.github.com/repos/${setAppVersion.orgName}/${setAppVersion.repoName}';
+    final response = await http.get(
+      Uri.parse('$baseUrl/git/refs/heads/$branch'),
+      headers: {'Authorization': 'token ${setAppVersion.githubPAT}'},
+    );
+
+    if (response.statusCode == 200) {
+      final jsonResponse = jsonDecode(response.body);
+      return jsonResponse['object']['sha'];
+    }
+
+    return null;
+  }
+
+  Future<bool> createBranch(
+    String branchName,
+    String sha,
+    SetAppVersion setAppVersion,
+  ) async {
+    final baseUrl =
+        'https://api.github.com/repos/${setAppVersion.orgName}/${setAppVersion.repoName}';
+    final response = await http.post(
+      Uri.parse('$baseUrl/git/refs'),
+      headers: {
+        'Authorization': 'token ${setAppVersion.githubPAT}',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'ref': 'refs/heads/$branchName',
+        'sha': sha,
+      }),
+    );
+
+    return response.statusCode == 201;
+  }
+
+  Future<bool> createPullRequest(
+    String head,
+    String base,
+    String title,
+    String body,
+    SetAppVersion setAppVersion,
+  ) async {
+    final baseUrl =
+        'https://api.github.com/repos/${setAppVersion.orgName}/${setAppVersion.repoName}';
+    final response = await http.post(
+      Uri.parse('$baseUrl/pulls'),
+      headers: {
+        'Authorization': 'token ${setAppVersion.githubPAT}',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({
+        'title': title,
+        'head': head,
+        'base': base,
+        'body': body,
+      }),
+    );
+
+    return response.statusCode == 201;
   }
 
   Future<void> updatePubspecYamlVersionKeepBuild(

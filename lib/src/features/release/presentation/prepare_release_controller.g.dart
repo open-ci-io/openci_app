@@ -6,7 +6,7 @@ part of 'prepare_release_controller.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$fetchAppVersionHash() => r'7447d56ac1e09dc94ca315340288a288158cf20b';
+String _$fetchAppVersionHash() => r'a1b66418f04d18e87185a1515cf16a39d78ae68d';
 
 /// See also [fetchAppVersion].
 @ProviderFor(fetchAppVersion)
@@ -23,7 +23,7 @@ final fetchAppVersionProvider =
 
 typedef FetchAppVersionRef = AutoDisposeFutureProviderRef<SetAppVersion>;
 String _$prepareReleaseControllerHash() =>
-    r'60a414aef22dc8b1c058c4e6af3d835863dd158f';
+    r'49e4c75ec44668d5d267a2f90075f28a6cb832b8';
 
 /// See also [PrepareReleaseController].
 @ProviderFor(PrepareReleaseController)

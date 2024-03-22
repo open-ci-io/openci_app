@@ -14,6 +14,7 @@ final isChecked4 = signal(false);
 final _selectedValue = signal(0);
 final _currentVersion = signal('');
 final _updatedVersion = signal('');
+final _isLoadingModal = signal(false);
 final _isLoading = signal(false);
 
 class PrepareReleasePage extends ConsumerWidget {
@@ -21,103 +22,146 @@ class PrepareReleasePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
-      backgroundColor: AppColors.lightOrange,
-      appBar: AppBar(
-        backgroundColor: AppColors.lightGray,
-        title: const Text('Prepare Release'),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.only(top: 24, left: 16.0, right: 16.0),
-        child: Watch(
-          (context) => ListView(
-            shrinkWrap: true,
-            children: [
-              CheckboxListTile(
-                controlAffinity: ListTileControlAffinity.leading,
-                title: Text(
-                  'Set App Version',
-                  style: TextStyle(
-                    decoration: isSetAppVersionChecked.value
-                        ? TextDecoration.lineThrough
-                        : null,
-                  ),
-                ),
-                value: isSetAppVersionChecked.value,
-                onChanged: (value) async {
-                  if (value == null) return;
+    final controller = ref.watch(prepareReleaseControllerProvider.notifier);
 
-                  showModalBottomSheet(
-                    context: context,
-                    builder: (context) {
-                      return const _Modal();
+    return Watch(
+      (context) => ModalProgressHUD(
+        inAsyncCall: _isLoading.value,
+        child: Scaffold(
+          backgroundColor: AppColors.lightOrange,
+          appBar: AppBar(
+            backgroundColor: AppColors.lightGray,
+            title: const Text('Prepare Release'),
+          ),
+          body: Padding(
+            padding: const EdgeInsets.only(top: 24, left: 16.0, right: 16.0),
+            child: Watch(
+              (context) => ListView(
+                shrinkWrap: true,
+                children: [
+                  CheckboxListTile(
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: Text(
+                      'Set App Version',
+                      style: TextStyle(
+                        decoration: isSetAppVersionChecked.value
+                            ? TextDecoration.lineThrough
+                            : null,
+                      ),
+                    ),
+                    value: isSetAppVersionChecked.value,
+                    onChanged: (value) async {
+                      if (value == null) return;
+
+                      showModalBottomSheet(
+                        context: context,
+                        builder: (context) {
+                          return const _Modal();
+                        },
+                      );
                     },
-                  );
-                },
-                activeColor: AppColors.black,
-                checkColor: Colors.white,
-                tileColor: AppColors.lightGray,
-                contentPadding: const EdgeInsets.only(left: 4),
-              ),
-              CheckboxListTile(
-                controlAffinity: ListTileControlAffinity.leading,
-                title: Text(
-                  'Deploy Build to Stores',
-                  style: TextStyle(
-                    decoration:
-                        isChecked2.value ? TextDecoration.lineThrough : null,
+                    activeColor: AppColors.black,
+                    checkColor: Colors.white,
+                    tileColor: AppColors.lightGray,
+                    contentPadding: const EdgeInsets.only(left: 4),
                   ),
-                ),
-                value: isChecked2.value,
-                onChanged: (value) {
-                  if (value == null) return;
-                  isChecked2.value = value;
-                },
-                activeColor: AppColors.black,
-                checkColor: Colors.white,
-                tileColor: AppColors.lightGray,
-                contentPadding: const EdgeInsets.only(left: 4),
-              ),
-              CheckboxListTile(
-                controlAffinity: ListTileControlAffinity.leading,
-                title: Text(
-                  'Prepare Release Notes',
-                  style: TextStyle(
-                    decoration:
-                        isChecked3.value ? TextDecoration.lineThrough : null,
+                  CheckboxListTile(
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: Text(
+                      'Create a Release Pull Request',
+                      style: TextStyle(
+                        decoration: isChecked2.value
+                            ? TextDecoration.lineThrough
+                            : null,
+                      ),
+                    ),
+                    value: isChecked2.value,
+                    onChanged: (value) async {
+                      if (value == null) return;
+                      _isLoading.value = true;
+                      try {
+                        final appVersion =
+                            await controller.fetchSetAppVersion();
+                        await controller.createReleaseBranchAndPR(
+                          appVersion.appVersion,
+                          appVersion,
+                        );
+                      } catch (e) {
+                        rethrow;
+                      } finally {
+                        _isLoading.value = false;
+                        isChecked2.value = value;
+                      }
+                    },
+                    activeColor: AppColors.black,
+                    checkColor: Colors.white,
+                    tileColor: AppColors.lightGray,
+                    contentPadding: const EdgeInsets.only(left: 4),
                   ),
-                ),
-                value: isChecked3.value,
-                onChanged: (value) {
-                  if (value == null) return;
-                  isChecked3.value = value;
-                },
-                activeColor: AppColors.black,
-                checkColor: Colors.white,
-                tileColor: AppColors.lightGray,
-                contentPadding: const EdgeInsets.only(left: 4),
-              ),
-              CheckboxListTile(
-                controlAffinity: ListTileControlAffinity.leading,
-                title: Text(
-                  // 審査提出
-                  'Submit for Review',
-                  style: TextStyle(
-                    decoration:
-                        isChecked4.value ? TextDecoration.lineThrough : null,
+                  CheckboxListTile(
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: Text(
+                      'Deploy Build to Stores',
+                      style: TextStyle(
+                        decoration: isChecked3.value
+                            ? TextDecoration.lineThrough
+                            : null,
+                      ),
+                    ),
+                    value: isChecked3.value,
+                    onChanged: (value) {
+                      if (value == null) return;
+                      isChecked3.value = value;
+                    },
+                    activeColor: AppColors.black,
+                    checkColor: Colors.white,
+                    tileColor: AppColors.lightGray,
+                    contentPadding: const EdgeInsets.only(left: 4),
                   ),
-                ),
-                value: isChecked4.value,
-                onChanged: (value) {
-                  if (value == null) return;
-                  isChecked4.value = value;
-                },
-                activeColor: AppColors.black,
-                checkColor: Colors.white,
-                tileColor: AppColors.lightGray,
-                contentPadding: const EdgeInsets.only(left: 4),
+                  CheckboxListTile(
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: Text(
+                      'Prepare Release Notes',
+                      style: TextStyle(
+                        decoration: isChecked4.value
+                            ? TextDecoration.lineThrough
+                            : null,
+                      ),
+                    ),
+                    value: isChecked4.value,
+                    onChanged: (value) {
+                      if (value == null) return;
+                      isChecked4.value = value;
+                    },
+                    activeColor: AppColors.black,
+                    checkColor: Colors.white,
+                    tileColor: AppColors.lightGray,
+                    contentPadding: const EdgeInsets.only(left: 4),
+                  ),
+                  CheckboxListTile(
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: Text(
+                      // 審査提出
+                      'Submit for Review',
+                      style: TextStyle(
+                        decoration: isChecked4.value
+                            ? TextDecoration.lineThrough
+                            : null,
+                      ),
+                    ),
+                    value: isChecked4.value,
+                    onChanged: (value) {
+                      if (value == null) return;
+                      isChecked4.value = value;
+                    },
+                    activeColor: AppColors.black,
+                    checkColor: Colors.white,
+                    tileColor: AppColors.lightGray,
+                    contentPadding: const EdgeInsets.only(left: 4),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -138,7 +182,7 @@ class _Modal extends ConsumerWidget {
       width: context.width,
       child: Watch(
         (context) => ModalProgressHUD(
-          inAsyncCall: _isLoading.value,
+          inAsyncCall: _isLoadingModal.value,
           child: future.when(
             data: (data) {
               return Scaffold(
@@ -262,7 +306,7 @@ class _Modal extends ConsumerWidget {
                             ),
                           ),
                           onPressed: () async {
-                            _isLoading.value = true;
+                            _isLoadingModal.value = true;
                             try {
                               await controller
                                   .updatePubspecYamlVersionKeepBuild(
@@ -275,7 +319,7 @@ class _Modal extends ConsumerWidget {
                             } catch (e) {
                               print(e);
                             } finally {
-                              _isLoading.value = false;
+                              _isLoadingModal.value = false;
                             }
 
                             Navigator.pop(context);
